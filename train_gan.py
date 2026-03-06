@@ -1,8 +1,3 @@
-#!/usr/bin/env python3
-"""
-GAN Training Script using PyTorch
-Trains a Generative Adversarial Network on pixel data.
-"""
 
 import numpy as np
 import pandas as pd
@@ -12,18 +7,15 @@ import torch.nn as nn
 import torch.optim as optim
 
 
-# Set random seeds for reproducibility
 np.random.seed(99)
 torch.manual_seed(99)
 if torch.cuda.is_available():
     torch.cuda.manual_seed(99)
 
-# Device configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Generator(nn.Module):
-    """Generator Network for GAN."""
     
     def __init__(self, latent_dim=16, img_dim=784):
         super(Generator, self).__init__()
@@ -37,12 +29,10 @@ class Generator(nn.Module):
         )
     
     def forward(self, z):
-        """Forward pass through generator."""
         return self.model(z)
 
 
 class Discriminator(nn.Module):
-    """Discriminator Network for GAN."""
     
     def __init__(self, img_dim=784):
         super(Discriminator, self).__init__()
@@ -56,15 +46,12 @@ class Discriminator(nn.Module):
         )
     
     def forward(self, x):
-        """Forward pass through discriminator."""
         return self.model(x)
 
 
 def main():
-    """Main training loop using PyTorch."""
     print(f"Using device: {device}")
     
-    # Generate and load data
     print("Generating training data...")
     data = np.random.randint(0, 256, (200, 784))
     df = pd.DataFrame(data)
@@ -72,7 +59,6 @@ def main():
     print("pixel_data.csv created!")
     print(f"Data shape: {data.shape}")
     
-    # Load and normalize data
     print("\nLoading and normalizing data...")
     df = pd.read_csv("pixel_data.csv")
     data = df.values.astype(np.float32)
@@ -81,7 +67,6 @@ def main():
     print(f"Data loaded! Shape: {data.shape}")
     print(f"Min: {data.min():.2f}  Max: {data.max():.2f}")
     
-    # Initialize networks
     print("\nInitializing networks...")
     latent_dim = 16
     img_dim = 784
@@ -92,50 +77,40 @@ def main():
     print("Generator built!")
     print("Discriminator built!")
     
-    # Optimizers and loss function
     lr = 0.0002
     beta1 = 0.5
     optimizer_g = optim.Adam(generator.parameters(), lr=lr, betas=(beta1, 0.999))
     optimizer_d = optim.Adam(discriminator_net.parameters(), lr=lr, betas=(beta1, 0.999))
     criterion = nn.BCELoss()
     
-    # Training parameters
     epochs = 300
     batch_size = 32
     
     d_losses = []
     g_losses = []
     
-    # Training loop
     print(f"\nTraining for {epochs} epochs...")
     for epoch in range(epochs):
-        # Get real batch
         idx = np.random.randint(0, len(data), batch_size)
         real = data_tensor[idx]
         
-        # Generate fake batch
         noise = torch.randn(batch_size, latent_dim).to(device)
         fake = generator(noise)
         
-        # Train Discriminator
         optimizer_d.zero_grad()
         
-        # Real samples
         real_preds = discriminator_net(real)
         real_labels = torch.ones(batch_size, 1).to(device)
         d_loss_real = criterion(real_preds, real_labels)
         
-        # Fake samples
         fake_preds = discriminator_net(fake.detach())
         fake_labels = torch.zeros(batch_size, 1).to(device)
         d_loss_fake = criterion(fake_preds, fake_labels)
         
-        # Total discriminator loss
         d_loss = (d_loss_real + d_loss_fake) / 2
         d_loss.backward()
         optimizer_d.step()
         
-        # Train Generator
         optimizer_g.zero_grad()
         
         noise2 = torch.randn(batch_size, latent_dim).to(device)
@@ -154,7 +129,6 @@ def main():
     
     print("Training complete!")
     
-    # Evaluation
     print("\nEvaluating...")
     generator.eval()
     discriminator_net.eval()
@@ -174,7 +148,6 @@ def main():
     print(f"Final Discriminator Accuracy: {accuracy:.4f}")
     print("Training script by Student A (PyTorch)")
     
-    # Plot losses
     print("\nGenerating loss plot...")
     plt.figure(figsize=(8, 4))
     plt.plot(d_losses, label='Discriminator Loss', color='blue')
