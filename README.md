@@ -1,6 +1,6 @@
-# GAN Training Project
+# GAN Training Project (PyTorch Version)
 
-A reproducible Generative Adversarial Network (GAN) training script with conda environment and Docker support.
+A reproducible Generative Adversarial Network (GAN) training script built with **PyTorch**, featuring conda environment and Docker support.
 
 ## Project Structure
 
@@ -77,7 +77,7 @@ docker run --rm `
 
 The Dockerfile follows efficient layering best practices:
 
-1. **Lightweight base image**: `python:3.11-slim` (≈150MB)
+1. **PyTorch base image**: `pytorch/pytorch:2.1.0-cuda12.1-runtime-ubuntu22.04` (optimized for GPU/CPU)
 2. **Copy requirements first**: Enables Docker layer caching
 3. **Install dependencies**: Only re-runs if requirements.txt changes
 4. **Copy application code**: Final layer, changes frequently
@@ -92,6 +92,8 @@ The training script generates:
 ## Environment Details
 
 ### Dependencies
+- `torch==2.1.0` - PyTorch deep learning framework
+- `torchvision==0.16.0` - Computer vision utilities
 - `numpy==1.26.4` - Numerical computing
 - `pandas==3.0.1` - Data manipulation
 - `matplotlib==3.10.8` - Visualization

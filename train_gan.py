@@ -1,76 +1,68 @@
 #!/usr/bin/env python3
 """
-GAN Training Script
+GAN Training Script using PyTorch
 Trains a Generative Adversarial Network on pixel data.
 """
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import torch
+import torch.nn as nn
+import torch.optim as optim
 
 
-def relu(x):
-    """Rectified Linear Unit activation function."""
-    return np.maximum(0, x)
+# Set random seeds for reproducibility
+np.random.seed(99)
+torch.manual_seed(99)
+if torch.cuda.is_available():
+    torch.cuda.manual_seed(99)
+
+# Device configuration
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def sigmoid(x):
-    """Sigmoid activation function."""
-    return 1 / (1 + np.exp(-x))
+class Generator(nn.Module):
+    """Generator Network for GAN."""
+    
+    def __init__(self, latent_dim=16, img_dim=784):
+        super(Generator, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(latent_dim, 64),
+            nn.ReLU(),
+            nn.Linear(64, 128),
+            nn.ReLU(),
+            nn.Linear(128, img_dim),
+            nn.Sigmoid()
+        )
+    
+    def forward(self, z):
+        """Forward pass through generator."""
+        return self.model(z)
 
 
-def leaky_relu(x, alpha=0.2):
-    """Leaky ReLU activation function."""
-    return np.where(x > 0, x, alpha * x)
-
-
-def bce_loss(pred, target):
-    """Binary Cross Entropy loss."""
-    pred = np.clip(pred, 1e-7, 1 - 1e-7)
-    return -np.mean(target * np.log(pred) + (1 - target) * np.log(1 - pred))
-
-
-def update_weights(weights, grads, lr=0.0002):
-    """Update weights using gradient descent."""
-    return [w - lr * g for w, g in zip(weights, grads)]
-
-
-def generator_forward(z, G_w1, G_b1, G_w2, G_b2, G_w3, G_b3):
-    """Forward pass through generator."""
-    h1 = relu(z @ G_w1 + G_b1)
-    h2 = relu(h1 @ G_w2 + G_b2)
-    out = sigmoid(h2 @ G_w3 + G_b3)
-    return out, h1, h2
-
-
-def discriminator_forward(x, D_w1, D_b1, D_w2, D_b2, D_w3, D_b3):
-    """Forward pass through discriminator."""
-    h1 = leaky_relu(x @ D_w1 + D_b1)
-    h2 = leaky_relu(h1 @ D_w2 + D_b2)
-    out = sigmoid(h2 @ D_w3 + D_b3)
-    return out, h1, h2
-
-
-def generator(z, G_w1, G_b1, G_w2, G_b2, G_w3, G_b3):
-    """Generate fake samples."""
-    h1 = relu(z @ G_w1 + G_b1)
-    h2 = relu(h1 @ G_w2 + G_b2)
-    out = sigmoid(h2 @ G_w3 + G_b3)
-    return out
-
-
-def discriminator(x, D_w1, D_b1, D_w2, D_b2, D_w3, D_b3):
-    """Discriminate real vs fake samples."""
-    h1 = leaky_relu(x @ D_w1 + D_b1)
-    h2 = leaky_relu(h1 @ D_w2 + D_b2)
-    out = sigmoid(h2 @ D_w3 + D_b3)
-    return out
+class Discriminator(nn.Module):
+    """Discriminator Network for GAN."""
+    
+    def __init__(self, img_dim=784):
+        super(Discriminator, self).__init__()
+        self.model = nn.Sequential(
+            nn.Linear(img_dim, 128),
+            nn.LeakyReLU(0.2),
+            nn.Linear(128, 64),
+            nn.LeakyReLU(0.2),
+            nn.Linear(64, 1),
+            nn.Sigmoid()
+        )
+    
+    def forward(self, x):
+        """Forward pass through discriminator."""
+        return self.model(x)
 
 
 def main():
-    """Main training loop."""
-    # Set random seed for reproducibility
-    np.random.seed(99)
+    """Main training loop using PyTorch."""
+    print(f"Using device: {device}")
     
     # Generate and load data
     print("Generating training data...")
@@ -85,6 +77,7 @@ def main():
     df = pd.read_csv("pixel_data.csv")
     data = df.values.astype(np.float32)
     data = (data - data.min()) / (data.max() - data.min())
+    data_tensor = torch.FloatTensor(data).to(device)
     print(f"Data loaded! Shape: {data.shape}")
     print(f"Min: {data.min():.2f}  Max: {data.max():.2f}")
     
@@ -93,29 +86,22 @@ def main():
     latent_dim = 16
     img_dim = 784
     
-    # Generator weights
-    np.random.seed(None)
-    G_w1 = np.random.randn(latent_dim, 64) * 0.01
-    G_b1 = np.zeros(64)
-    G_w2 = np.random.randn(64, 128) * 0.01
-    G_b2 = np.zeros(128)
-    G_w3 = np.random.randn(128, img_dim) * 0.01
-    G_b3 = np.zeros(img_dim)
-    print("Generator built!")
+    generator = Generator(latent_dim, img_dim).to(device)
+    discriminator_net = Discriminator(img_dim).to(device)
     
-    # Discriminator weights
-    D_w1 = np.random.randn(img_dim, 128) * 0.01
-    D_b1 = np.zeros(128)
-    D_w2 = np.random.randn(128, 64) * 0.01
-    D_b2 = np.zeros(64)
-    D_w3 = np.random.randn(64, 1) * 0.01
-    D_b3 = np.zeros(1)
+    print("Generator built!")
     print("Discriminator built!")
+    
+    # Optimizers and loss function
+    lr = 0.0002
+    beta1 = 0.5
+    optimizer_g = optim.Adam(generator.parameters(), lr=lr, betas=(beta1, 0.999))
+    optimizer_d = optim.Adam(discriminator_net.parameters(), lr=lr, betas=(beta1, 0.999))
+    criterion = nn.BCELoss()
     
     # Training parameters
     epochs = 300
     batch_size = 32
-    lr = 0.0002
     
     d_losses = []
     g_losses = []
@@ -125,51 +111,68 @@ def main():
     for epoch in range(epochs):
         # Get real batch
         idx = np.random.randint(0, len(data), batch_size)
-        real = data[idx]
+        real = data_tensor[idx]
         
         # Generate fake batch
-        noise = np.random.randn(batch_size, latent_dim)
-        fake = generator(noise, G_w1, G_b1, G_w2, G_b2, G_w3, G_b3)
+        noise = torch.randn(batch_size, latent_dim).to(device)
+        fake = generator(noise)
         
-        # Discriminator on real and fake
-        real_preds, _, _ = discriminator_forward(real, D_w1, D_b1, D_w2, D_b2, D_w3, D_b3)
-        fake_preds, _, _ = discriminator_forward(fake, D_w1, D_b1, D_w2, D_b2, D_w3, D_b3)
+        # Train Discriminator
+        optimizer_d.zero_grad()
         
-        # Discriminator loss
-        real_labels = np.ones((batch_size, 1))
-        fake_labels = np.zeros((batch_size, 1))
-        d_loss = (bce_loss(real_preds, real_labels) + 
-                  bce_loss(fake_preds, fake_labels)) / 2
+        # Real samples
+        real_preds = discriminator_net(real)
+        real_labels = torch.ones(batch_size, 1).to(device)
+        d_loss_real = criterion(real_preds, real_labels)
         
-        # Generator loss
-        noise2 = np.random.randn(batch_size, latent_dim)
-        fake2 = generator(noise2, G_w1, G_b1, G_w2, G_b2, G_w3, G_b3)
-        fake2_preds, _, _ = discriminator_forward(fake2, D_w1, D_b1, D_w2, D_b2, D_w3, D_b3)
-        g_loss = bce_loss(fake2_preds, real_labels)
+        # Fake samples
+        fake_preds = discriminator_net(fake.detach())
+        fake_labels = torch.zeros(batch_size, 1).to(device)
+        d_loss_fake = criterion(fake_preds, fake_labels)
         
-        d_losses.append(d_loss)
-        g_losses.append(g_loss)
+        # Total discriminator loss
+        d_loss = (d_loss_real + d_loss_fake) / 2
+        d_loss.backward()
+        optimizer_d.step()
+        
+        # Train Generator
+        optimizer_g.zero_grad()
+        
+        noise2 = torch.randn(batch_size, latent_dim).to(device)
+        fake2 = generator(noise2)
+        fake2_preds = discriminator_net(fake2)
+        g_loss = criterion(fake2_preds, real_labels)
+        
+        g_loss.backward()
+        optimizer_g.step()
+        
+        d_losses.append(d_loss.item())
+        g_losses.append(g_loss.item())
         
         if (epoch + 1) % 100 == 0:
-            print(f"Epoch {epoch + 1}/{epochs} | D Loss: {d_loss:.4f} | G Loss: {g_loss:.4f}")
+            print(f"Epoch {epoch + 1}/{epochs} | D Loss: {d_loss.item():.4f} | G Loss: {g_loss.item():.4f}")
     
     print("Training complete!")
     
     # Evaluation
     print("\nEvaluating...")
-    noise = np.random.randn(100, latent_dim)
-    fake_final = generator(noise, G_w1, G_b1, G_w2, G_b2, G_w3, G_b3)
-    real_sample = data[:100]
+    generator.eval()
+    discriminator_net.eval()
     
-    real_preds, _, _ = discriminator_forward(real_sample, D_w1, D_b1, D_w2, D_b2, D_w3, D_b3)
-    fake_preds, _, _ = discriminator_forward(fake_final, D_w1, D_b1, D_w2, D_b2, D_w3, D_b3)
-    
-    real_acc = np.mean(real_preds > 0.5)
-    fake_acc = np.mean(fake_preds < 0.5)
-    accuracy = (real_acc + fake_acc) / 2
+    with torch.no_grad():
+        noise = torch.randn(100, latent_dim).to(device)
+        fake_final = generator(noise)
+        real_sample = data_tensor[:100]
+        
+        real_preds = discriminator_net(real_sample)
+        fake_preds = discriminator_net(fake_final)
+        
+        real_acc = (real_preds > 0.5).float().mean().item()
+        fake_acc = (fake_preds < 0.5).float().mean().item()
+        accuracy = (real_acc + fake_acc) / 2
     
     print(f"Final Discriminator Accuracy: {accuracy:.4f}")
-    print("Training script by Student A")
+    print("Training script by Student A (PyTorch)")
     
     # Plot losses
     print("\nGenerating loss plot...")
@@ -178,7 +181,7 @@ def main():
     plt.plot(g_losses, label='Generator Loss', color='orange')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
-    plt.title('GAN Training Loss')
+    plt.title('GAN Training Loss (PyTorch)')
     plt.legend()
     plt.tight_layout()
     plt.savefig('gan_loss.png')
