@@ -1,0 +1,10 @@
+name: env_rl_project
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy==1.26.4
+  - pandas==3.0.1
+  - matplotlib==3.10.8
+  - pip
+prefix: /Users/HORAS/miniconda3/envs/env_rl_project
